@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Aesthetic Axioms</title>
+    <link>https://karlvolk.github.io/axiomblog-site/</link>
+    <description>Recent content on Aesthetic Axioms</description>
+    <generator>Hugo -- 0.155.2</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 13 Jan 2026 21:29:29 +0100</lastBuildDate>
+    <atom:link href="https://karlvolk.github.io/axiomblog-site/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>About</title>
+      <link>https://karlvolk.github.io/axiomblog-site/about/</link>
+      <pubDate>Tue, 13 Jan 2026 21:29:29 +0100</pubDate>
+      <guid>https://karlvolk.github.io/axiomblog-site/about/</guid>
+      <description>&lt;p&gt;Here, you can read about interesting stuff.&lt;/p&gt;
+&lt;p&gt;The fonts used are &lt;a href=&#34;https://github.com/alerque/libertinus&#34;&gt;Libertinus Serif&lt;/a&gt; and &lt;a href=&#34;https://github.com/JetBrains/JetBrainsMono&#34;&gt;JetBrains Mono&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;The current icon is taken from &lt;a href=&#34;https://www.svgrepo.com/svg/307525/octopus-animal-cephalopod&#34;&gt;svgrepo.com&lt;/a&gt;.&lt;/p&gt;</description>
+      <content:encoded><![CDATA[<p>Here, you can read about interesting stuff.</p>
+<p>The fonts used are <a href="https://github.com/alerque/libertinus">Libertinus Serif</a> and <a href="https://github.com/JetBrains/JetBrainsMono">JetBrains Mono</a>.</p>
+<p>The current icon is taken from <a href="https://www.svgrepo.com/svg/307525/octopus-animal-cephalopod">svgrepo.com</a>.</p>
+]]></content:encoded>
+    </item>
+    <item>
+      <title>Maximizing Likelihoods</title>
+      <link>https://karlvolk.github.io/axiomblog-site/posts/likelihood/</link>
+      <pubDate>Tue, 13 Jan 2026 19:42:43 +0100</pubDate>
+      <guid>https://karlvolk.github.io/axiomblog-site/posts/likelihood/</guid>
+      <description>&lt;p&gt;In machine learning, we often treat the choice of loss function as a hyperparameter or a default setting: mean square error for regression, cross-entropy for classification. But these aren&amp;rsquo;t just convenient mathematical tools; they are rigorous statements that follow directly from our assumptions about the world.&lt;/p&gt;
+&lt;p&gt;When you choose mean squared error, you are implicitly stating, &amp;lsquo;I believe the noise in my universe is Gaussian.&amp;rsquo; When you choose cross-entropy, you are assuming a specific probabilistic structure about information. This post explores how a single principle, maximum likelihood estimation, unifies these disparate tools and how altering your assumptions derives the standard objectives you use every day.&lt;/p&gt;</description>
+      <content:encoded><![CDATA[<p>In machine learning, we often treat the choice of loss function as a hyperparameter or a default setting: mean square error for regression, cross-entropy for classification. But these aren&rsquo;t just convenient mathematical tools; they are rigorous statements that follow directly from our assumptions about the world.</p>
+<p>When you choose mean squared error, you are implicitly stating, &lsquo;I believe the noise in my universe is Gaussian.&rsquo; When you choose cross-entropy, you are assuming a specific probabilistic structure about information. This post explores how a single principle, maximum likelihood estimation, unifies these disparate tools and how altering your assumptions derives the standard objectives you use every day.</p>
+<h2 id="simple-linear-regression">Simple Linear Regression</h2>
+<p>Let&rsquo;s say we have some datapoints $(x^{(i)},y^{(i)})$ in $\mathbb{R}$ where we suspect that the $y$-values depend linearly on the $x$-values. For example some measurements that depend on time. Let&rsquo;s also assume that we make the educated (!) guess that the measurements are perturbed by some independent Gaussian (<a href="https://en.wikipedia.org/wiki/Normal_distribution">normal</a>) noise with constant variance.</p>
+<p>We can formalize these assumptions as follows:</p>
+$$
+  y^{(i)}=f\left(x^{(i)}\right)+\varepsilon^{(i)}
+$$<p>where $f\colon\mathbb{R}\to\mathbb{R}$ denotes some affine function $f(x)=ax+b$ and $\varepsilon^{(i)}\sim\mathcal{N}(0,\sigma^2)$ denote normal distributions for some standard deviation $\sigma$. Note that $f$ is linear when $b=0$.</p>
+<p>The likelihood function $\mathcal{L}(\theta)$ is the joint probability density function of our model (assessing the likelihood of $y^{(i)}=f\left(x^{(i)}\right)$), depending on the model parameters $\theta$, in our case $a,b,\sigma\in\mathbb{R}$. It tells us, given two different parameter sets for our model, which resulting model is more likely to explain the given data. By the assumption of independence of noise the likelihood can be written as a product of probability densities for each point:</p>
+$$
+  \mathcal{L}(\theta)=\prod_{i=1}^np_i(\theta)
+$$<p>where $p_i$ is the probability density function describing the likelihood that $y^{(i)}$ is explained by our model. It is the likelihood that $y^{(i)}=f\left(x^{(i)}\right)+\varepsilon^{(i)}$, or equivalently that $\varepsilon^{(i)}=y^{(i)}-f\left(x^{(i)}\right)$:</p>
+$$
+  p_i(\theta)=p(y^{(i)}|x^{(i)};\theta)
+  =\frac{1}{\sqrt{2\pi\sigma^2}}\exp\left({-\frac{\left(y^{(i)}-f\left(x^{(i)}\right)\right)^2}{2\sigma^2}}\right)
+$$<p>Our task is now clear:</p>
+<blockquote>
+<p>Maximize the likelihood, by choosing optimal parameters for our model.</p>
+</blockquote>
+<p>Since logarithms convert products into sums and are the inverse of the exponential function we instead maximize the log-likelihood $\log\mathcal{L}(\theta)$. Since the logarithm is strictly increasing, maximizing the log-likelihood is equivalent to maximizing the likelihood:</p>
+$$
+  \begin{aligned}
+  \mathrm{argmax}_\theta\mathcal{L}(\theta)
+  &=\mathrm{argmax}_\theta\log\mathcal{L}(\theta)\\
+  &=\mathrm{argmax}_\theta\sum_{i=1}^n\log\left(\frac{1}{\sqrt{2\pi\sigma^2}}\right)-{\frac{\left(y^{(i)}-f\left(x^{(i)}\right)\right)^2}{2\sigma^2}}\\
+  &=\mathrm{argmax}_\theta\sum_{i=1}^n-\left(y^{(i)}-f\left(x^{(i)}\right)\right)^2\\
+  &=\mathrm{argmin}_\theta\sum_{i=1}^n\left(y^{(i)}-f(x^{(i)})\right)^2\\
+  \end{aligned}
+$$<p>We can recognise this as the formulation often used in linear regression. We now see that the minimization of the <em>squared</em> errors is a direct consequence of the assumption that the noise in our data is normally distributed. Note also that our objective is independent of the standard deviation $\sigma$ of the normal distributions.</p>
+<h2 id="general-linear-regression">General Linear Regression</h2>
+<p>If we now suspect that $y$ depends linearly on $p$ different input variables $x^{(i)}_j$, then we suppose that $y^{(i)}=f\left(x^{(i)}\right)+\varepsilon^{(i)}$ for $x^{(i)}\in\mathbb{R}^p$ and every $i$. Note the domain of the affine (sometimes linear) function $f\colon\mathbb{R}^p\to\mathbb{R}$ changed.</p>
+<p>The math works out exactly the same as above, with the only difference being that an affine function takes on the form $f(x)=a\cdot x+b$ for some vector $a\in\mathbb{R}^p$ and $b\in\mathbb{R}$.</p>
+<p>Generalizing further, we may assume that we have $q$ many values $y_k$ that we try to predict from $p$ many $x_j$. In this case, we assume an affine function $f(x)=A x+b$ for $A\in\mathbb{R}^{q\times p}$ and $b\in\mathbb{R}^q$ and the noise follows multivariate normal distributions $\varepsilon^{(i)}\sim\mathcal{N}(0,\Sigma)$ with covariance matrix $\Sigma_{ij}=\mathrm{Cov}(\varepsilon_i,\varepsilon_j)$. If we assume that the errors have the same variance and are independent, then $\Sigma=\sigma^2 I$ for some $\sigma\in\mathbb{R}$ and $I$ the identity.</p>
+<p>The corresponding density distributions are then</p>
+$$
+  p_i=\frac{1}{(2\pi)^{q/2}\det(\Sigma)^{1/2}}
+  \exp\left(-\frac{1}{2}
+  \left(y^{(i)}-f(x^{(i)})\right)^\top\Sigma^{-1}\left(y^{(i)}-f(x^{(i)})\right)
+  \right)
+$$<p>Maximizing the joint likelihood is then again equivalent to the maximization of the sum of log-likelihoods, resulting in the following objective:</p>
+$$
+    \begin{aligned}
+    \mathrm{argmax}_\theta\mathcal{L}(\theta)
+    &=\mathrm{argmin}_\theta\sum_{i=1}^n
+    \left(y^{(i)}-f(x^{(i)})\right)^\top\Sigma^{-1}\left(y^{(i)}-f(x^{(i)})\right)\\
+    &=\mathrm{argmin}_\theta\sum_{i=1}^n
+    \left\lVert y^{(i)}-f(x^{(i)})\right\rVert^2
+    \end{aligned}
+$$<p>where we used our expression for the covariance matrix $\Sigma$ and $\lVert x\rVert=x^\top x$ denotes the standard Euclidean norm.</p>
+<h3 id="solving-linear-regression">Solving Linear Regression</h3>
+<p>Instead of setting the differential to zero, which works but requires careful bookkeeping, there is an elegant derivation of an analytical solution to linear regression, as described by a user <a href="https://stats.stackexchange.com/q/9824">on stackexchange</a>.</p>
+<p>We first note that we can write the sum above as a trace $\mathrm{tr}(g(Y-AX))$, where $Y\in\mathbb{R}^{q\times n}$ and $X\in\mathbb{R}^{p\times n}$ contain our $(x_i,y_i)$-data in their respective $i$th column, and $g(M):=MM^\top$ saves us some space. We assume w.l.o.g. that the bias term is zero. Note that</p>
+$$
+\begin{aligned}
+\mathrm{tr}g(Y-AX)&=\mathrm{tr}g((Y-A'X)+(A'X-AX))\\
+&=\mathrm{tr}(g(Y-A'X)+g((A'-A)X)- 2 (Y-A'X) X^\top(A-A')^\top)
+\end{aligned}
+$$<p>Now, since the first two summands are positive, if we chose $A'$ such that the last term vanished, then the minimum $\min_A\mathrm{tr}g(Y-AX)$ would be $\geq\mathrm{tr}g(Y-A'X)$. Thus $A'$ would be our minimizer. So let&rsquo;s check if we can find $A'\in\mathbb{R}^{q\times p}$ such that the last part vanishes for every $A$:</p>
+$$
+\begin{aligned}
+&2 (Y-A'X) X^\top(A-A')^\top=0\\
+\Leftrightarrow& (Y-A'X) X^\top=0\\
+\Leftrightarrow& YX^\top=A'XX^\top\\
+\Leftrightarrow& YX^\top(XX^\top)^{-1}=A'\\
+\end{aligned}
+$$<p>So as long as $XX^\top$ is invertible (has full rank) we can analytically solve the general linear regression problem.</p>
+<h2 id="classification-and-cross-entropy">Classification and Cross-Entropy</h2>
+<p>If we are not interested in some distribution of numbers, but the distribution of classes, such as in image classification or language modelling, a reasonable assumption is that each class has some probability. In the case of two classes such a distribution is called a Bernoulli distribution, where one class has probability $p$ and the other (consequently) has probability $1-p$. For more classes, we call such distributions categorical distributions. A categorical distribution on $n$ classes consists of $d$ probabilities that sum to one: $(p_1,\dots,p_n)$ such that $\sum_i p_i=1$.</p>
+<p>Assume we have $n$ observations $(y^{(k)},x^{(k)})$ assigning to some known $x^{(k)}$ the true distribution of classes $y^{(k)}\in\mathbb{R}^d$. If we know the true class, we assume that the distribution vector $y^{(k)}$ assigns to the true class all of the probability weight and zero to all other labels. Our model assigns to each $x^{(k)}$ <em>some</em> class distribution $f(x^{(k)})\in\mathbb{R}^d$.</p>
+<p>The probability that our model generates the true label, say at index $c$, is given by the probability that our model assigns to that index: $f(x^{(k)})_c$. More generally, if our labels represent aggregate statistics of independent observations (e.g. if we let 100 people vote on a label, we take the resulting distribution as ground truth), the probability that our model generates these observations is given by</p>
+$$
+\begin{aligned}
+    p(y^{(k)}|x^{(k)})=\prod_i f(x^{(k)})_i^{y_i^{(k)}}
+\end{aligned}
+$$<p>Assuming that the samples are all independent and identically distributed (often abbreviated as i.i.d.), the likelihood for $n$ samples is then</p>
+$$
+\begin{aligned}
+    \mathcal{L}(y|x;\theta)
+    =\prod_{k=1}^np\left(y^{(k)}\middle|x^{(k)}\right)
+    =\prod_{k=1}^n\prod_{i=1}^d f\left(x^{(k)}\right)_i^{y_i^{(k)}}
+\end{aligned}
+$$<p>We now want to maximize the likelihood that our model generates our observations, which is again equivalent to the minimization of the log-likelihood:</p>
+$$
+\begin{aligned}
+    -\log\mathcal{L}(y|x;\theta)=-\sum_{k=1}^n\sum_{i=1}^d y_i^{(k)}\log f\left(x^{(k)}\right)_i
+\end{aligned}
+$$<p>You may have already either recognized this term as the total <a href="https://en.wikipedia.org/wiki/Cross-entropy">cross-entropy</a> or from the <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html">cross-entropy loss function</a> which is used for the training of classification networks.</p>
+<h2 id="principal-component-analysis">Principal Component Analysis</h2>
+<p>So far, we have looked at discriminative models: given an input $x$, what is the likely output $y$? But what if we don&rsquo;t have inputs? What if we just want to understand the structure of the data itself?</p>
+<p>This leads us to generative modeling. If we assume our data points are just noisy observations of some lower-dimensional &rsquo;true&rsquo; latent variable, maximum likelihood estimation naturally leads us to probabilistic principal component analysis (PPCA).</p>
+<p>This approach has been described in <a href="https://www.cs.columbia.edu/~blei/seminar/2020-representation/readings/TippingBishop1999.pdf">Probabilistic principal component analysis by Tipping and Bishop in 1998</a>.</p>
+<p>We model our data as $y=Ax+\mu+\varepsilon$, where $\varepsilon\sim\mathcal{N}(0,\sigma^2I)$ is independent Gaussian noise as before and unlike before, we assume that $x\sim\mathcal{N}(0,I)$ is independent of the noise $\varepsilon$. But unlike the regression case, we did not observe $x$ and can therefore not ask to maximize $p(y|x)$. We can only maximize the likelihood that we see the data $p(y)$.</p>
+<p>From our assumptions on the normality of the noise and $x$ follows directly that our measurements are also modelled by a normal distribution. To find its likelihood/probability density, we only need to find its mean and covariance (as they uniquely specify a normal distribution).</p>
+<p>The expected value of $y$ is swiftly calculated using the linearity of expectation and the distributions from our assumptions:</p>
+$$
+\begin{aligned}
+\mathbb{E}[y]=\mathbb{E}[Ax+\mu\varepsilon]=A\mathbb{E}[x]+\mu+\mathbb{E}[\varepsilon]=\mu
+\end{aligned}
+$$<p>The covariance matrix of $y$, by definition is</p>
+$$
+\begin{aligned}
+\mathrm{Cov}(y)&=\mathbb{E}[(y-\mu)(y-\mu)^\top]\\
+&=\mathbb{E}[(Ax+\varepsilon)(x^\top A^\top+\varepsilon^\top)]\\
+&=A\mathbb{E}[xx^\top]A^\top+\mathbb{E}[\varepsilon\varepsilon^\top]\\
+&=AA^\top+\sigma^2 I
+\end{aligned}
+$$<p>We thus see that $y$ must be distributed according to $\mathcal{N}(\mu,AA^\top+I)$. Now to formulate the problem of finding the maximum likelihood of this model to explain our observations $y_i$ with (sample) covariance matrix $S$, we proceed similar to before by taking the logarithm:</p>
+$$
+\begin{aligned}
+  \mathrm{argmax}_A\mathcal{L}(A)
+  &=\mathrm{argmax}_A -\frac{1}{2}\sum_i \log\det(\mathrm{Cov}(y)) + (y_i-\mu)^\top\mathrm{Cov}(y)^{-1}(y_i-\mu)
+\end{aligned}
+$$<p>The second part of the sum neatly simplifies:</p>
+$$
+\begin{aligned}
+  \sum_i (y_i-\mu)^\top\mathrm{Cov}(y)^{-1}(y_i-\mu)
+  &=\sum_i \mathrm{tr}\left((y_i-\mu)^\top\mathrm{Cov}(y)^{-1}(y_i-\mu)\right) & \text{apply the trace}\\
+  &=\sum_i \mathrm{tr}\left(\mathrm{Cov}(y)^{-1}(y_i-\mu)(y_i-\mu)^\top\right) & \text{permute the factors}\\
+  &=\mathrm{tr}\left(\mathrm{Cov}(y)^{-1}\sum_i (y_i-\mu)(y_i-\mu)^\top\right) & \\
+  &=\mathrm{tr}\left(\mathrm{Cov}(y)^{-1}nS\right) & \text{}\\
+  &=n\mathrm{tr}\left(\mathrm{Cov}(y)^{-1}S\right) & \text{}\\
+\end{aligned}
+$$<p>Here we used the &ldquo;Trace Trick&rdquo;: The trace is linear, invariant under cyclic permutations of products and the identity on numbers. We then recognize the sum as being $n$ times the sample variance matrix $S$. Plugging this for into our argmax gives us:</p>
+$$
+\begin{aligned}
+  \mathrm{argmax}_A\mathcal{L}(A)
+  &=\mathrm{argmin}_A\log\det(\mathrm{Cov}(y))+\mathrm{tr}\left(\mathrm{Cov}(y)^{-1}S\right)\\
+  &=\mathrm{argmin}_A\log\det(AA^\top+\sigma^2 I)+\mathrm{tr}\left((AA^\top+\sigma^2 I)^{-1}S\right)
+\end{aligned}
+$$<p>It can be shown that the solutions to this problem are given by</p>
+$$
+\begin{aligned}
+  A=U_q(\Lambda_q-\sigma^2I)^{1/2}R
+\end{aligned}
+$$<p>where $U_q$ and $\Lambda_q$ contain the top $q$ eigenvectors and eigenvalues of $S$ respectively and $R$ can be any orthogonal (i.e. rotation) matrix.</p>
+<p>We can recover standard principal component analysis by letting $\sigma^2\to 0$ which results in $A=U_q\Lambda_q^{1/2}$.</p>
+]]></content:encoded>
+    </item>
+  </channel>
+</rss>
