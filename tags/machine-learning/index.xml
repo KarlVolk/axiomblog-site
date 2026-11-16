@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Machine-Learning on Aesthetic Axioms</title><link>https://karlvolk.github.io/axiomblog-site/tags/machine-learning/</link><description>Recent content in Machine-Learning on Aesthetic Axioms</description><generator>Hugo</generator><language>en-us</language><lastBuildDate>Thu, 28 May 2026 19:42:43 +0100</lastBuildDate><atom:link href="https://karlvolk.github.io/axiomblog-site/tags/machine-learning/index.xml" rel="self" type="application/rss+xml"/><item><title>Giving the Transformer Variable Compute</title><link>https://karlvolk.github.io/axiomblog-site/posts/variable_computation/</link><pubDate>Thu, 28 May 2026 19:42:43 +0100</pubDate><guid>https://karlvolk.github.io/axiomblog-site/posts/variable_computation/</guid><description>&lt;p&gt;In this set of experiments I investigate different methods of incorporating variable compute allocation into the transformer architecture. Since &lt;a href="https://openai.com/index/learning-to-reason-with-llms/"&gt;test-time compute&lt;/a&gt; &lt;a href="https://arxiv.org/abs/2408.03314"&gt;scaling&lt;/a&gt; relates the number of tokens produced to output quality, we already have &lt;em&gt;a&lt;/em&gt; solution to variable compute: every token costs the same, but a request generates as many tokens as the task needs. Here I ask a different question: can a single token cost a variable amount?&lt;/p&gt;
+&lt;p&gt;Starting with a small-scale character-based transformer, I wanted to see whether compute can be dynamically allocated to each token (character) in a way that improves upon the simple fully-connected and mixture-of-experts architectures.&lt;/p&gt;</description><content:encoded><![CDATA[<p>In this set of experiments I investigate different methods of incorporating variable compute allocation into the transformer architecture. Since <a href="https://openai.com/index/learning-to-reason-with-llms/">test-time compute</a> <a href="https://arxiv.org/abs/2408.03314">scaling</a> relates the number of tokens produced to output quality, we already have <em>a</em> solution to variable compute: every token costs the same, but a request generates as many tokens as the task needs. Here I ask a different question: can a single token cost a variable amount?</p>
+<p>Starting with a small-scale character-based transformer, I wanted to see whether compute can be dynamically allocated to each token (character) in a way that improves upon the simple fully-connected and mixture-of-experts architectures.</p>
+<blockquote>
+<p>Note that these experiments are not easily generalizable to full large transformers with a token vocabulary of 100k or even bigger.</p>
+</blockquote>
+<h2 id="motivation">Motivation</h2>
+<p>A standard transformer spends the same amount of compute on each token. That is, easy-to-predict filler words cost as much as tokens that carry a lot of semantic weight. The main takeaway is that a standard transformer has constant FLOPs/token.</p>
+<div class="aside">
+  <span class="aside-label">Note</span>The picture is a little more subtle than &ldquo;one token, one fixed budget.&rdquo; Through attention, an interesting token&rsquo;s meaning does not stay put. Every subsequent token can read from it, so in the deeper layers its meaning can get reused and further processed by the compute nominally spent on the boring tokens that follow it. One thing that keeps this from dissolving into an undifferentiated soup is the residual connection which carries each position&rsquo;s original embedding forward, so a token stays anchored to itself even as information mixes.
+</div>
+
+<p>So an interesting question to ask is:</p>
+<blockquote>
+<p>Can we allocate variable compute dynamically to each token, depending on how much it needs?</p>
+</blockquote>
+<p>The following experiments describe different attempts to answer the question. I followed two main techniques to realize the variable compute:</p>
+<ol>
+<li>Use a mixture-of-experts style router to route tokens through compute paths of different costs.</li>
+<li>Try to learn a more compute optimal tokenization by using learnable byte-level patching in the architecture. This should modify <em>token count</em> rather than character-token compute.</li>
+</ol>
+<p>The main result is that sparsemax token routing matched standard mixture-of-experts while using around 25% less compute with the same parameter count.</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/00_overview.light.svg" alt="Every model on one compute-perplexity plane, colored by lever: routing vs patching" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/00_overview.dark.svg" alt="Every model on one compute-perplexity plane, colored by lever: routing vs patching" loading="lazy"><figcaption>Every model at once, colored by lever: expert routing (blue) vs token patching (orange/red). The two families optimize different objectives, so read this as a map of the whole study, not a head-to-head.</figcaption></figure>
+<h2 id="the-scope">The Scope</h2>
+<p>The goal here is not better quality on its own, but a better compute-quality trade-off. Plotting each network on a FLOPs/token vs. quality plane traces out a Pareto front, which lets us compare the different methods on equal footing.</p>
+<p>As mentioned above, the experiments are rather tiny in scale: we use byte-level (character) encodings and train on the Wikitext-2 corpus. The baseline transformer has an embedding dim of $d=256$ and $8$ layers, trained for $4000$ steps.</p>
+<p>The main motivation behind the byte-level encodings is that tokenization itself is a compute allocation mechanism which is currently separately trained for frontier LLMs. The gradient signal during training does <em>not</em> optimize the tokenization, so we are almost certainly left with a suboptimal one. Starting at the byte level lets us fold the tokenization into the model and test learnable variants of it.</p>
+<p>To compare the different architecture choices, we need to fix some hyperparameters:</p>
+<ul>
+<li>Training data: <a href="https://arxiv.org/abs/1609.07843">WikiText-2</a>.</li>
+<li>Optimizer: <a href="https://arxiv.org/abs/1711.05101">AdamW</a> + <a href="https://arxiv.org/abs/1608.03983">cosine schedule</a>.</li>
+<li>Architecture: <a href="https://arxiv.org/abs/1910.07467">RMSNorm</a>, <a href="https://arxiv.org/abs/2104.09864">RoPE</a>, <a href="https://arxiv.org/abs/2002.05202">SwiGLU</a> feedforward blocks, <a href="https://arxiv.org/abs/1608.05859">weight-tied head</a>.</li>
+<li>Results: Taking the checkpoint that performed best on the validation set.</li>
+</ul>
+<blockquote>
+<p>Disclaimer: I make no claim to be the first to test these methods (I am sure that I am not). This post documents a set of experiments and discusses them. Not more, not less. Otherwise this would be a paper.</p>
+</blockquote>
+<h2 id="expert-routing-for-variable-compute">Expert Routing for Variable Compute</h2>
+<p>The <a href="https://arxiv.org/abs/1701.06538">mixture-of-experts</a> (MoE) baseline works as follows: a linear router scores $E = 8$ experts and routes each token through its top two. For a token hidden state $x \in \mathbb{R}^d$,</p>
+$$p = \operatorname{softmax}(W_r\, x), \qquad y = \sum_{i \in \operatorname{top-2}(p)} \tilde{p}_i \, E_i(x),$$<p>where $\tilde{p}$ renormalizes the gates over the two selected experts, and each expert $E_i$ is a SwiGLU feedforward block of hidden width $2d$ (so two active experts cost roughly one dense $4d$ FFN). A <a href="https://arxiv.org/abs/2101.03961">Switch</a>-style load-balancing loss keeps expert utilization roughly uniform. This lets each expert specialize while the router activates only the paths a token needs, keeping inference compute low even as the parameter count grows. This is especially useful for storing vast amounts of knowledge within such a network. The baseline achieved <strong>3.108 ppl @ 19.0M FLOPs with 27.4M parameters</strong>.</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/01_landscape.light.svg" alt="Compute-perplexity frontier of the routing models" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/01_landscape.dark.svg" alt="Compute-perplexity frontier of the routing models" loading="lazy"><figcaption>The loss landscape.</figcaption></figure>
+<p>I tested two methods to achieve variable compute with the token-routing mechanism:</p>
+<ol>
+<li>Vary the compute of each routed path. The model can learn to select low compute paths for <em>easier</em> tokens and high compute paths for <em>harder</em> tokens. For this set of experiments this is called mixture-of-compute.</li>
+<li>Allow the router to select a variable number of routes. Thus harder tokens get more computation by being routed through <em>more</em> experts. Here we call it adaptive MoE.</li>
+</ol>
+<h2 id="mixture-of-compute">Mixture-of-Compute</h2>
+<p>For mixture-of-compute I decided to have experts with differing widths. The $E$ experts are SwiGLU blocks with hidden-width multipliers $(0, 1, 2, 4)\times d$, where expert $0$ is a zero-width <em>skip</em> (the identity/residual path, costing no FLOPs). Since a SwiGLU block&rsquo;s FLOPs scale with its hidden width, each multiplier is exactly that expert&rsquo;s compute tier. The router is the same top-2 softmax as MoE, but because the selected experts now cost different amounts, the realized compute per token depends on <em>which</em> experts win.</p>
+<p>To keep the router from always grabbing the widest (most accurate) experts, we add a Lagrangian compute penalty to the loss (alongside a small router-z regularizer):</p>
+$$\mathcal{L} = \mathcal{L}_{\text{NLL}} + \lambda\,\frac{\mathbb{E}\!\left[\sum_i p_i\, c_i\right]}{C_{\text{ref}}},$$<p>where $c_i$ is expert $i$&rsquo;s FLOPs cost, $C_{\text{ref}}$ a fixed reference, and $\lambda$ dials the average compute per token. In my experiments this did <em>not</em> beat standard MoE at matching compute, resulting in <strong>3.131 ppl @ 18.8M FLOPs</strong>. What the architecture does buy us is a knob to tweak the average compute per token <em>continuously</em>, beyond the discrete steps of &ldquo;number of active experts&rdquo;. (The best-matching <em>duplicated</em> variant uses multipliers $(0,1,1,2,2,4,4)\times d$, i.e. two experts at each nonzero cost tier rather than one, giving the router more specialized paths at the same FLOPs.)</p>
+<h2 id="adaptive-mixture-of-experts">Adaptive Mixture-of-Experts</h2>
+<p>The idea is simple: use the same experts as the MoE baseline ($E = 8$ SwiGLU blocks of hidden width $2d$), but swap the routing rule. Instead of softmax followed by a fixed top-2, the router applies <a href="https://arxiv.org/abs/1602.02068">sparsemax</a>, the Euclidean projection of the logits onto the probability <a href="https://en.wikipedia.org/wiki/Simplex">simplex</a>:</p>
+$$g = \operatorname{sparsemax}(W_r\, x) = \arg\min_{q \,\in\, \Delta^{E-1}} \lVert q - W_r x \rVert^2 .$$<p>Unlike softmax, sparsemax assigns <em>exactly</em> zero weight to some experts, so the per-token count $k = \#\{\, i : g_i > 0 \,\}$ becomes data-dependent and learned: peaky logits give a small $k$ (one expert dominating; cheap tokens), near-uniform logits give a large $k$ (hard tokens). No threshold and no straight-through estimator are needed; a permissive cap $k \le k_{\max}$ only bounds memory. The average compute is dialed by penalizing the gates&rsquo; <em>inverse participation ratio</em> $1/\sum_i g_i^2$ (a smooth surrogate for $k$) with the same coefficient $\lambda$ as in mixture-of-compute.</p>
+<p>This gave us a whopping <strong>3.113 ppl @ 14.3M FLOPs</strong>, matching the MoE baseline at almost 25% less compute and the same total parameter count.</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/02_amoe_win.light.svg" alt="MoE vs adaptive MoE: same perplexity at ~25% less compute" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/02_amoe_win.dark.svg" alt="MoE vs adaptive MoE: same perplexity at ~25% less compute" loading="lazy"><figcaption>Zooming in on standard MoE vs adaptive MoE.</figcaption></figure>
+<p>I started out with a maximum cap of $k=4$, so that the most expensive tokens could choose up to four experts at once. As it turned out, tightening the cap to only $k=2$ led to <em>fewer</em> FLOPs at the <em>same</em> quality. The gain here was therefore not about allowing more compute, but about saving compute on the tokens that did not need it.</p>
+<p>A second surprise is that the compute penalty is not purely a cost; it doubles as a routing <em>regularizer</em>. Across the $\lambda$ sweep (at cap $k=4$), the run with no penalty ($\lambda = 0$) is the worst on <strong>both</strong> axes, at <strong>3.134 ppl and 20.4M FLOPs</strong>, and even routes <em>backwards</em>, spending more compute on whitespace than on letters. A moderate $\lambda = 0.02$ simultaneously yields the best perplexity, the least compute, and correctly-directed per-token spending.</p>
+<p>We can also investigate how the trained model spends its compute budget based on the class of each byte:</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/03_byteclass.light.svg" alt="Byteclass FLOPs" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/03_byteclass.dark.svg" alt="Byteclass FLOPs" loading="lazy"></figure>
+<p>Under compute pressure, the model learned to spend less on whitespace characters while allocating more to digits.</p>
+<p>To see how this behaviour emerged, I swept the compute penalty (at the $k=4$ cap) and looked at how larger penalties reshape the distribution of expert selections:</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/04_kdist.light.svg" alt="Expert selection distributions" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/04_kdist.dark.svg" alt="Expert selection distributions" loading="lazy"></figure>
+<h2 id="token-patching">Token Patching</h2>
+<p>The second lever changes <em>how many tokens exist</em>. Bytes are cheap individually but there are a lot of them; if we merge them into a smaller number of <em>patches</em> before the expensive transformer stack runs, the model does less work per byte. The catch is that the merging has to be learned and content-aware: the whole point of going byte-level was to <em>not</em> hard-code (or optimize separately) the tokenization.</p>
+<figure class="theme-img">
+  <img class="img-light" src="/axiomblog-site/posts/variable_computation/05_patching.light.svg" alt="Compute-quality frontier for byte patching methods" loading="lazy">
+  <img class="img-dark" src="/axiomblog-site/posts/variable_computation/05_patching.dark.svg" alt="Compute-quality frontier for byte patching methods" loading="lazy"><figcaption>Making fewer tokens: BLT scales cleanly, WPT does not, and HPT nearly catches BLT.</figcaption></figure>
+<p>I compared three ways of forming patches, all at $d=256$ and $8$ layers, against the dense byte-level GPT (<strong>3.166 ppl @ 19.0M FLOPs</strong>) as reference:</p>
+<ol>
+<li>
+<p>BLT (entropy patching, baseline). Following the <a href="https://arxiv.org/abs/2412.09871">Byte Latent Transformer</a>, patch boundaries go where the next byte is hardest to predict. The shared byte encoder (2 attention-only layers, $d=128$, 4 heads) feeds a weight-tied linear next-byte head, a lightweight byte-level LM trained jointly via an auxiliary loss (weight 0.1), <em>not</em> a separate pre-trained model as in the original BLT. Its predictive <em>entropy</em> is evaluated at every position, and the top-$K$ highest-entropy positions become patch boundaries. This scales cleanly: shrinking the average patch size $8 \to 4 \to 2$ trades compute for quality monotonically, going <strong>5.59 -&gt; 4.66 -&gt; 3.66 ppl</strong> as realized compute grows <strong>3.1M -&gt; 5.3M -&gt; 9.9M FLOPs</strong>.</p>
+</li>
+<li>
+<p>WPT (warp-pool transformer, a negative result). Instead of discrete boundaries, WPT is fully differentiable: the model emits a per-byte <em>stretch</em> weight and patches are formed by Gaussian soft-pooling along the induced &ldquo;warped&rdquo; coordinate. It is elegant, and it <em>fails to scale</em>: the extra compute of smaller patches doesn&rsquo;t pay off, and patch size $2$ (<strong>5.90 ppl @ 9.9M FLOPs</strong>) is actually <em>worse</em> than patch size $8$ (<strong>5.76 ppl @ 3.1M FLOPs</strong>). The failure mode is mass concentration: most bytes receive near-zero stretch, so the extra patches end up nearly empty.</p>
+</li>
+<li>
+<p>HPT (hierarchical patch transformer, a partial recovery). HPT replaces the single pooling step with three successive learned $2\!:\!1$ merges. At patch size $2$ it nearly matches BLT, reaching <strong>3.81 ppl @ 9.6M FLOPs vs 3.66 @ 9.9M</strong>, recovering most of what WPT lost.</p>
+</li>
+</ol>
+<p>The takeaway is that <em>where</em> the boundaries go matters more than <em>how</em> you pool between them: content-aware discrete placement (BLT) beats a clever continuous relaxation (WPT), and stacking discrete merges (HPT) recovers most of the gap. Even so, none of these beat the dense byte baseline at this scale: patching here buys us a compute <em>knob</em>, not a quality win.</p>
+<h2 id="conclusions">Conclusions</h2>
+<p>Even at this scale, MoE is surprisingly hard to beat. The only architecture that lands below it on the compute-quality frontier is Adaptive MoE, and it wins by <em>removing</em> compute (a tight $k \le 2$ cap plus a mild routing penalty) rather than adding it. Everything else (variable-width experts, the differentiable warp-pool) trades either parameters or quality for its compute knob.</p>
+<p>If there is one theme, it is that adaptive compute pays when the model is allowed to <em>commit</em>: hard per-token $k$ via sparsemax wins, and content-aware discrete patch boundaries scale, while the smoother, hedge-everywhere relaxations (WPT; $\lambda = 0$ Adaptive MoE) do worst. Softer is not automatically better.</p>
+<p><strong>Caveats.</strong> This is a mechanism study, not a scaling claim: a single seed with no error bars (sub-~1% perplexity gaps may be noise), one model size, one dataset, one sequence length, and byte statistics specific to English. The Adaptive MoE win is small, but it is consistent in the same direction across every $\lambda$ I tried. I also did not compare the different training behaviours, which might reveal other differences.</p>
+]]></content:encoded></item></channel></rss>
